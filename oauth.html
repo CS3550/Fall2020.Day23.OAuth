@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link href='https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Material+Icons' rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify/dist/vuetify.min.css" rel="stylesheet">
+  <script src="https://kit.fontawesome.com/1db46cd8d9.js"></script>
+  <style>
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Arial Narrow';
+      overflow: hidden;
+    }
+
+    a {
+      color: rgb(215, 25, 32);
+      /* Official red accent */
+    }
+
+    .flex_container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .flex_title {
+      background-color: black;
+      color: white;
+      flex: 0 0 50px;
+      text-transform: uppercase;
+      padding: 5px;
+      font-size: 40px;
+      display: flex;
+      align-items: center;
+    }
+
+    .flex_subtitle {
+      background-color: #BCBBBA;
+      flex: 0 0 35px;
+      font-family: "Times New";
+      padding: 5px;
+      font-size: 15px;
+    }
+
+    .image-container {
+      flex: 1 1 0;
+    }
+
+    .flex_footer {
+      background-color: black;
+      flex: 0 0 35px;
+      color: white;
+      line-height: 35px;
+      padding: 5px;
+    }
+
+    .svgText {
+      font-family: 'Roboto', sans-serif;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="flex_container" id="app">
+    <div class="flex_title">
+      <div>OAuth Token Exchange</div>
+    </div>
+    <div class="flex_subtitle">
+      <button id="next" onClick="next()">Next</button>
+      <button id="previous" onClick="previous()">Previous</button>
+    </div>
+    <div class="image-container" id="imageContainer">
+      <svg style="width:100%;height:100%;background-color:white" id="mySVG"></svg>
+    </div>
+    <div class="flex_footer">
+      This resource created by B. Ricks for UNO CSCS 3550.
+    </div>
+  </div>
+
+  <script src='https://code.jquery.com/jquery-3.2.1.min.js'></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.15/lodash.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.12.0/d3.js"></script>
+
+  <script>
+
+    const actors = [
+      { name: "Server" },
+      { name: "Browser" },
+      { name: "GitHub" },
+    ];
+
+    const allData = [
+      { from: "Browser", to: "Server", desc: "User requests public page." },
+      { from: "Server", to: "Browser", desc: "Server redirects to GitHub with client id + nonce." },
+      { from: "Browser", to: "GitHub", desc: "Browser redirects to GitHub with client id + nonce." },
+      { from: "GitHub", to: "Browser", desc: "GitHub sends login page." },
+      { from: "Browser", to: "GitHub", desc: "Browser sends credentials." },
+      { from: "GitHub", to: "Browser", desc: "GitHub redirects to Server with temp code + nonce." },
+      { from: "Browser", to: "Server", desc: "Browser redirects to Server temp code + nonce." },
+      { from: "Server", to: "GitHub", desc: "Server gives GitHub temp code and client secret." },
+      { from: "GitHub", to: "Server", desc: "GitHub gives access token." },
+      { from: "Server", to: "Browser", desc: "Server proceeds." },
+
+    ];
+
+    let currentData = [];
+    let currentIndex = 0;
+
+    const svg = d3.select('#mySVG');
+    svg.attr("width", "100%")
+    svg.attr("height", "100%")
+
+
+    function plot(data, svg) {
+      const width = $("#mySVG").width();
+      const height = $("#mySVG").height()
+      const t = d3.transition()
+        .duration(1000)
+        .ease(d3.easeBack);
+
+
+      const xMargin = 20;
+      const yMargin = 100;
+
+      let lineLocations = [];
+      for (let i = 0; i < data.actors.length - 1; i++) {
+        lineLocations.push(i * (width - xMargin) / (data.actors.length - 1) + xMargin);
+      }
+      lineLocations.push(width - xMargin);
+
+      yOffset = (height - yMargin) / allData.length;
+
+      const mainGraphics = svg
+        .selectAll('.mainGraphics')
+        .data(data.actors, d => d.name)
+        .join(enter => {
+          enter = enter.append('g').attr('class', 'mainGraphics');
+          enter.append('text');
+          enter.append('path');
+          return enter;
+        })
+
+
+
+      mainGraphics
+        .selectAll('text')
+        .attr('class', 'mainGraphicsText')
+        .text(d => d.name)
+        .attr('y', 50)
+        .attr('x', function (d, i) {
+          return lineLocations[d.index];
+        })
+        .attr('text-anchor', (d, i) => {
+          if (d.index == 0) return "start";
+          if (d.index == data.actors.length - 1) return "end";
+          return "middle";
+        })
+
+      mainGraphics
+        .selectAll('path')
+        .attr('d', (d, i) => {
+          return `M ${lineLocations[d.index] + 1} 60 L ${lineLocations[d.index] + 1} ${height}`;
+        })
+        .attr("stroke", "black")
+        .attr("stroke-width", 2)
+
+
+      function startX(d) { return lineLocations[d.startIndex] };
+      function endX(d) { return lineLocations[d.endIndex] };
+      function minX(d) { return Math.min(startX(d), endX(d)) };
+
+      let startY = 0;
+      let endY = yOffset/2;
+      let arrowHeadRadius = 10;
+
+
+      const arrowG = svg
+        .selectAll('.arrows')
+        .data(data.arrows, d => d.time)
+        .join(enter => {
+          enter = enter.append('g');
+          let firstPath = enter.append('path');
+          firstPath.attr('class', 'firstPath');
+
+          let secondPath = enter.append('path');
+          secondPath.attr('class', 'secondPath');
+
+          let g = enter.append("g");
+          g.append("rect");
+          g.append("text");
+
+          return enter;
+        })
+        .attr('class', 'arrows')
+        .attr('transform', (d, i) => `translate(${minX(d)}, ${d.time * yOffset + 50 + 20 + yOffset/2})`);
+
+
+
+      arrowG
+        .selectAll('.firstPath')
+        .attr('d', (d, i) => {
+          return `M ${startX(d) - minX(d)} ${startY} L ${endX(d) - minX(d)} ${endY}`;
+        })
+        .attr("stroke", "black")
+        .attr("stroke-opacity", "1")
+        .attr("stroke-width", 2)
+        .attr("fill", "none")
+
+      arrowG
+        .selectAll('.secondPath')
+        .attr('d', (d, i) => {
+
+          //Do some trig to make an arrow head
+          //let dx = startX(d) - endX(d);
+          //let dy = startY - endY;
+          let dx = endX(d) - startX(d);
+          let dy = endY - startY;
+
+          let angle = Math.atan2(dy, dx);
+          let myAngle1 = angle + Math.PI / 8;
+          let myAngle2 = angle - Math.PI / 8;
+          let newX = Math.cos(myAngle1 + Math.PI) * arrowHeadRadius + endX(d) - minX(d);
+          let newY = Math.sin(myAngle1 + Math.PI) * arrowHeadRadius + endY;
+          let newX2 = Math.cos(myAngle2 + Math.PI) * arrowHeadRadius + endX(d) - minX(d);
+          let newY2 = Math.sin(myAngle2 + Math.PI) * arrowHeadRadius + endY;
+
+
+
+
+          return `M ${newX} ${newY} L ${endX(d) - minX(d)} ${endY} L ${newX2} ${newY2}`;
+        })
+        .attr("stroke", "black")
+        .attr("stroke-opacity", "1")
+        .attr("stroke-width", 2)
+        .attr("fill", "none")
+
+      let toRotate = arrowG
+        .selectAll('g')
+        .attr('class', 'toRotate')
+        .attr('transform', (d, i) => {
+          let dx;
+          if (endX(d) < startX(d)) {
+            dx = startX(d) - endX(d);
+          }
+          else {
+            dx = endX(d) - startX(d);
+          }
+          let dy;
+          if (endX(d) < startX(d)) {
+            dy = startY - endY;
+          }
+          else {
+            dy = endY - startY;
+          }
+
+          let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+          let centerX = (Math.max(startX(d), endX(d)) - 20 - (Math.min(startX(d), endX(d)) + 20)) / 2;
+          let centerY = (endY - startY - 2) / 2;
+          return `translate(${centerX} ${centerY}) rotate(${angle}) translate(-${centerX} -${centerY})`;
+        })
+
+      toRotate
+        .selectAll("rect")
+        .attr('x', (d, i) => {
+          return 20;
+        })
+        .attr('y', (d, i) => {
+          return startY + 1;
+        })
+        .attr('width', (d, i) => {
+          return Math.max(startX(d), endX(d)) - 20 - (Math.min(startX(d), endX(d)) + 20)
+        })
+        .attr('height', (d, i) => {
+          return endY - startY - 2;
+        })
+        .attr("fill", "white")
+        .attr("stroke", "black")
+
+      toRotate
+        .selectAll('text')
+        .classed("desc", true)
+        //.attr('class', 'wrapText')
+        .attr("alignment-baseline", "hanging")
+        .attr('x', (d, i) => {
+          return 20 + 2;
+        })
+        .attr('y', (d, i) => {
+          return startY + 1 + 2;
+        })
+        .text(d => d.desc)
+        .style("font-size", function (d, i) {
+          let currentFontSize = yOffset/2;
+          if (this.style.fontSize) {
+            currentFontSize = +this.style.fontSize.substr(0, this.style.fontSize.length - 2);
+          }
+          let r = (Math.max(startX(d), endX(d)) - 20 - (Math.min(startX(d), endX(d)) + 20) - 4) / this.getComputedTextLength();
+          return Math.min(yOffset/2, r * currentFontSize);
+        })
+      /*.style("font-size", function(d) { 
+        Math.max(startX(d), endX(d)) - 20 - (Math.min(startX(d), endX(d)) + 20)/ this.getComputedTextLength()
+        })*/
+
+        d3.selectAll(".desc").style("font-size", function (d, i) {
+          let currentFontSize = yOffset/2;
+          if (this.style.fontSize) {
+            currentFontSize = +this.style.fontSize.substr(0, this.style.fontSize.length - 2);
+          }
+          let r = (Math.max(startX(d), endX(d)) - 20 - (Math.min(startX(d), endX(d)) + 20) - 4) / this.getComputedTextLength();
+          return Math.min(yOffset/2, r * currentFontSize);
+        })
+
+
+    };
+
+    function processData() {
+      let toPlot = {};
+      toPlot.actors = actors;
+
+      let map = [];
+
+      for (let i = 0; i < actors.length; i++) {
+        let actor = actors[i];
+        actor.index = i;
+
+        map[actor.name] = i;
+
+      }
+
+      for (let i = 0; i < currentData.length; i++) {
+        let thisData = currentData[i];
+        thisData.time = i;
+        thisData.startIndex = map[thisData.from];
+        thisData.endIndex = map[thisData.to];
+      }
+
+      toPlot.arrows = currentData;
+
+      plot(toPlot, svg);
+    }
+    processData()
+
+    function next() {
+      currentIndex++;
+      if (currentIndex >= allData.length)
+        currentIndex = allData.length;
+      currentData = allData.slice(0, currentIndex);
+      processData()
+    }
+
+    function previous() {
+      currentIndex--;
+      if (currentIndex < 0)
+        currentIndex = 0;
+      currentData = allData.slice(0, currentIndex);
+      processData();
+
+    }
+
+    var ro = new ResizeObserver(entries => {
+      processData()
+    });
+
+    ro.observe(document.querySelector("#imageContainer"));
+
+
+
+  </script>
+
+</body>
+
+</html>
